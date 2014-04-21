@@ -1,34 +1,53 @@
 # --------------------------------------------------------------------
+# Checking Execution Policy
+# --------------------------------------------------------------------
+#$Policy = "Unrestricted"
+$Policy = "RemoteSigned"
+If ((get-ExecutionPolicy) -ne $Policy) {
+  Write-Host "Script Execution is disabled. Enabling it now"
+  Set-ExecutionPolicy $Policy -Force
+  Write-Host "Please Re-Run this script in a new powershell enviroment"
+  Exit
+}
+
+# --------------------------------------------------------------------
 # Define the variables.
 # --------------------------------------------------------------------
-Param (
-    [string]$InetPhysPath = $( $env:SystemDrive + "\inetpub\wwwroot" ),
-    [string]$InetSiteName = $( Read-Host "Site Name" ),
-    [int]$InetSitePort    = $( Read-Host "Site Port" )
-)
+[string]$InetSiteName = $( Read-Host "Site Name" )
+[int]$InetSitePort    = $( Read-Host "Site Port" )
+[string]$InetPhysPath = $( $env:SystemDrive + "\inetpub" )
 
+$PoolName = "BenAPI"
+
+# --------------------------------------------------------------------
+# Loading IIS Modules
+# --------------------------------------------------------------------
 Import-Module "WebAdministration"
 
 # --------------------------------------------------------------------
-# Check for empty.
+# Test or Create App Pool
 # --------------------------------------------------------------------
-if(-not($InetSiteName)) { Throw "Site name cannot be empty..." }
-if(-not($InetSitePort)) { Throw "Site port cannot be empty..." }
-if(-not($InetPhysPath)) { Throw "Path name cannot be empty..." }
+if (!(Test-Path "IIS:\AppPools\$PoolName" -pathType container))
+{
+    # Create pool
+    $appPool = New-Item "IIS:\AppPools\$PoolName"
+    $appPool | Set-ItemProperty -Name "managedRuntimeVersion" -Value "v4.0"
+}
 
 # --------------------------------------------------------------------
 # Configure and register.
 # --------------------------------------------------------------------
-New-Item IIS:\Sites\$InetSiteName -physicalPath $InetPhysPath -bindings @{ protocol="http";bindingInformation=":"+$InetSitePort+":"+$InetSiteName } 
+$WebRoot = New-Item "$InetPhysPath\$InetSiteName" -type Directory
+New-Item IIS:\Sites\$InetSiteName -physicalPath $WebRoot -bindings @{ protocol="http";bindingInformation="*:"+$InetSitePort+":" } 
+
 Set-ItemProperty IIS:\Sites\$InetSiteName -name applicationPool -value BenAPI
+Set-Content "$WebRoot\default.htm" "Test Page: $InetSiteName"
+
 Start-WebSite $InetSiteName
 
 # --------------------------------------------------------------------
 # Run.
 # --------------------------------------------------------------------
-$webclient = New-Object Net.WebClient 
-$webclient.DownloadString("http://localhost:$InetSitePort/");
-
 $ie = New-Object -com InternetExplorer.Application 
 $ie.Visible = $true 
 $ie.Navigate("http://localhost:$InetSitePort/");
