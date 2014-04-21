@@ -15,9 +15,25 @@ If ((get-ExecutionPolicy) -ne $Policy) {
 # --------------------------------------------------------------------
 [string]$InetSiteName = $( Read-Host "Site Name" )
 [int]$InetSitePort    = $( Read-Host "Site Port" )
-[string]$InetPhysPath = $( $env:SystemDrive + "\inetpub" )
+[string]$InetPhysPath = $( "D:\www" )
+
+ ## For local this is fine since we aren't using D:\
+ ## [string]$InetPhysPath = $( $env:SystemDrive + "\inetpub" )
+
+# --------------------------------------------------------------------
+# Custom defined variables as stop-gate.
+# --------------------------------------------------------------------
+$DNSRecord = "dev1.ben.productplacement.corbis.pre"
+if ([string]::Compare("Y", $(Read-Host "Use $DNSRecord as DNS? [Y\n]"), $True))
+{
+    [string]$DNSRecord = $( Read-Host "New DNS Record" )
+}
 
 $PoolName = "BenAPI"
+if ([string]::Compare("Y", $(Read-Host "Use $PoolName as Pool? [Y\n]"), $True))
+{
+    [string]$PoolName = $( Read-Host "New Pool" )
+}
 
 # --------------------------------------------------------------------
 # Loading IIS Modules
@@ -38,16 +54,17 @@ if (!(Test-Path "IIS:\AppPools\$PoolName" -pathType container))
 # Configure and register.
 # --------------------------------------------------------------------
 $WebRoot = New-Item "$InetPhysPath\$InetSiteName" -type Directory
-New-Item IIS:\Sites\$InetSiteName -physicalPath $WebRoot -bindings @{ protocol="http";bindingInformation="*:"+$InetSitePort+":" } 
 
-Set-ItemProperty IIS:\Sites\$InetSiteName -name applicationPool -value BenAPI
-Set-Content "$WebRoot\default.htm" "Test Page: $InetSiteName"
+    New-Item IIS:\Sites\$InetSiteName -physicalPath $WebRoot -bindings @{ protocol="http";bindingInformation="*:"+$InetSitePort+":"+$DNSRecord }
+    Set-ItemProperty IIS:\Sites\$InetSiteName -Name applicationPool -Value $PoolName
+    Set-Content "$WebRoot\default.htm" "Test Page: $InetSiteName"
 
 Start-WebSite $InetSiteName
 
 # --------------------------------------------------------------------
 # Run.
 # --------------------------------------------------------------------
-$ie = New-Object -com InternetExplorer.Application 
-$ie.Visible = $true 
-$ie.Navigate("http://localhost:$InetSitePort/");
+$ie = New-Object -com InternetExplorer.Application
+$ie.Visible = $true
+
+$ie.Navigate("http://"+$DNSRecord+":"+$InetSitePort);
